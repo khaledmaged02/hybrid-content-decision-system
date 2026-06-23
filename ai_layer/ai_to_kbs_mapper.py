@@ -70,11 +70,9 @@ def build_facts(user_data, parent_data, content_data, analysis_data):
 
     facts.append(ParentSettings(
         protection_level=parent_data["protection_level"],
-        # Lists stored here are DISPLAY-ONLY mirrors.
-        # Phase 2 rules MUST NOT match against these lists.
-        # They match the atomic BannedCategory / BannedKeyword Facts below.
-        banned_categories=list(parent_data["banned_categories"]),
-        banned_keywords=list(parent_data["banned_keywords"]),
+        # CONTRACT (facts_schema §2): the banned lists are NOT stored on the
+        # Fact. They are exploded into atomic BannedCategory / BannedKeyword
+        # Facts in SECTION B below, straight from parent_data.
     ))
 
     facts.append(ContentInput(
@@ -92,10 +90,9 @@ def build_facts(user_data, parent_data, content_data, analysis_data):
         # never raises on a value like 1 or 0.
         confidence_score=float(analysis_data["confidence_score"]),
         confidence_level=analysis_data["confidence_level"],
-        # Lists here are DISPLAY-ONLY mirrors (same rule as ParentSettings).
-        # Phase 2 rules match DetectedCategory / SensitiveKeyword Facts below.
-        detected_categories=list(analysis_data["detected_categories"]),
-        sensitive_keywords=list(analysis_data["sensitive_keywords"]),
+        # CONTRACT (facts_schema §2): detected_categories / sensitive_keywords
+        # are NOT stored on the Fact — they are exploded into atomic
+        # DetectedCategory / SensitiveKeyword Facts in SECTION B below.
         suggested_min_age=int(analysis_data["suggested_min_age"]),  # int guard
         language=analysis_data["language"],
         analyzer_type=analysis_data["analyzer_type"],

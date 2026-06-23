@@ -47,41 +47,40 @@ class UserProfile(Fact):
 class ParentSettings(Fact):
     """Parent / guardian configuration.
 
-    NOTE ON THE LISTS BELOW (banned_categories, banned_keywords):
-    They are kept here for DISPLAY / TRACEABILITY only. Phase 2 rules MUST
-    NOT iterate this list. The mapper will explode each element into a
-    separate BannedCategory / BannedKeyword Fact (SECTION 2), and the rules
-    match THOSE. (Pure experta: no `for x in list` to make decisions.)
+    CONTRACT (facts_schema §2): this Fact holds ONLY protection_level.
+    The banned lists are NOT stored here — the mapper explodes each element
+    straight into separate BannedCategory / BannedKeyword Facts (SECTION 2),
+    and the rules match THOSE. (Pure experta: no `for x in list` to decide.)
     """
     protection_level = Field(str, mandatory=True)   # "low" | "medium" | "high"
-    banned_categories = Field(list, mandatory=True) # display-only mirror
-    banned_keywords = Field(list, mandatory=True)   # display-only mirror
 
 
 class ContentInput(Fact):
-    """The raw content being evaluated + where it came from."""
+    """The raw content being evaluated + where it came from.
+
+    CONTRACT (facts_schema §2): source_type / source_reputation have defaults,
+    so a caller may construct ContentInput(text=...) alone.
+    """
     text = Field(str, mandatory=True)
-    source_type = Field(str, mandatory=True)        # "text" | "video" | "image"
-    source_reputation = Field(str, mandatory=True)  # "trusted" | "unknown" | "suspicious"
+    source_type = Field(str, default="text")             # "text" | "video" | "image"
+    source_reputation = Field(str, default="unknown")    # "trusted" | "unknown" | "suspicious"
 
 
 class AIAnalysis(Fact):
     """The AI layer's analysis. This is ANALYSIS, never a decision.
 
-    The two list fields (detected_categories, sensitive_keywords) are, again,
-    DISPLAY-ONLY here. Phase 2 rules match the exploded DetectedCategory /
-    SensitiveKeyword Facts from SECTION 2 — never this inline list.
+    CONTRACT (facts_schema §2): the detected_categories / sensitive_keywords
+    lists are NOT stored here. The mapper explodes them into DetectedCategory /
+    SensitiveKeyword Facts (SECTION 2), which the rules match — never an inline list.
     """
     category = Field(str, mandatory=True)              # single top category
     risk_score = Field(int, mandatory=True)            # 0..100
     risk_level = Field(str, mandatory=True)            # "low"|"medium"|"high"|"critical"
     confidence_score = Field(float, mandatory=True)    # 0.0..1.0  (keep it a float!)
     confidence_level = Field(str, mandatory=True)      # "low"|"medium"|"high"
-    detected_categories = Field(list, mandatory=True)  # display-only mirror
-    sensitive_keywords = Field(list, mandatory=True)   # display-only mirror
     suggested_min_age = Field(int, mandatory=True)     # compared to UserProfile.age IN A RULE
     language = Field(str, mandatory=True)              # "ar" | "en" | ...
-    analyzer_type = Field(str, mandatory=True)         # "mock" | "simple" | "full"
+    analyzer_type = Field(str, default="mock")         # "mock" | "simple" | "full"
 
 
 # ==================================================================
@@ -173,8 +172,6 @@ if __name__ == "__main__":
     user = UserProfile(age=10, age_group="child", language="ar")
     parents = ParentSettings(
         protection_level="high",
-        banned_categories=["violence", "gambling"],
-        banned_keywords=["kill", "bet"],
     )
     content = ContentInput(
         text="sample content text",
@@ -187,8 +184,6 @@ if __name__ == "__main__":
         risk_level="high",
         confidence_score=0.91,
         confidence_level="high",
-        detected_categories=["violence", "weapons"],
-        sensitive_keywords=["kill"],
         suggested_min_age=16,
         language="ar",
         analyzer_type="mock",

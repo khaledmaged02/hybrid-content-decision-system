@@ -9,17 +9,17 @@ HOW TO RUN (IMPORTANT)
     WRONG:  python -m demo               (unnecessary here)
     RIGHT:  cd hybrid-content-decision-system && python demo.py
 
-WHAT THIS DEMO PROVES (Phase 1 scope)
+WHAT THIS DEMO PROVES (Day-1 scope — T1.7)
     1. AI layer  (mock_analyzer)  analyzes content -> dict.
     2. Mapper    (ai_to_kbs_mapper) converts dicts -> Facts.
     3. Engine    (kbs_engine)      holds Facts in working memory.
-    4. Engine runs with ZERO rules -> ZERO decisions fired.
-    5. Working memory is fully inspectable Fact by Fact.
+    4. Signal + Matching rules fire -> Signal + Reason facts.
+    5. Each signal type appears EXACTLY once (P2 verification).
 
-WHAT IT DOES NOT DO (Phase 2 — Ibrahim & Najat)
+WHAT IT DOES NOT DO (Day-2 — Ibrahim & Najat)
     Produce any verdict (Allowed / Warning / Blocked / Review).
-    Phase 2 @Rule methods will be added to KBSEngine and will
-    fire during engine.run() to produce Decision + Explanation.
+    Day-2 decision/explanation @Rule methods will read these Signals
+    and produce the final Decision + Explanation.
 ==================================================================
 """
 
@@ -29,6 +29,7 @@ from engine.kbs_engine import KBSEngine
 from facts.all_facts import (
     UserProfile, ParentSettings, ContentInput, AIAnalysis,
     BannedCategory, BannedKeyword, DetectedCategory, SensitiveKeyword,
+    Signal, Reason, Decision,
 )
 
 # ── Atomic Fact types as a set for isinstance checks in print helpers ──
@@ -83,23 +84,46 @@ def _print_facts(all_facts):
 
 
 def _print_engine_state(engine):
-    _section("STEP 3 — Working Memory (after engine.run())")
+    _section("STEP 3 — Engine run: Signals produced (Day-1 / T1.7)")
 
     rows = engine.list_facts()          # hides experta's internal InitialFact
     rule_count = len(engine.get_rules())
 
-    print(f"  Rules loaded : {rule_count}  ← must be 0 in Phase 1")
-    print(f"  Facts in WM  : {len(rows)}")
-    print()
-    for idx, fact in rows:
-        print(f"    f-{idx:<3}  {type(fact).__name__:<20} {fact.as_dict()}")
+    signals   = [f for _, f in rows if isinstance(f, Signal)]
+    reasons   = [f for _, f in rows if isinstance(f, Reason)]
+    decisions = [f for _, f in rows if isinstance(f, Decision)]
+
+    print(f"  Rules loaded   : {rule_count}  (signal + matching rules)")
+    print(f"  Facts in WM    : {len(rows)}")
+    print(f"  Signals raised : {len(signals)}")
+
+    print("\n  Signals:")
+    if not signals:
+        print("    (none — this content produced no risk/match signals)")
+    for s in signals:
+        d = s.as_dict()
+        print(f"    • {d['type']:<22} severity={d.get('severity', ''):<7}"
+              f" by {d.get('source_rule', '')}")
+
+    print("\n  Reasons (explainability payload, one per fired rule):")
+    for r in reasons:
+        print(f"    - {r['text']}")
+
+    # P2 verification: each signal type must appear EXACTLY once
+    types = [s['type'] for s in signals]
+    duplicates = sorted({t for t in types if types.count(t) > 1})
 
     print()
-    if rule_count == 0:
-        print("  [Phase 1 OK] engine.run() fired 0 rules — no decision made.")
-        print("  [Phase 2]    Ibrahim & Najat's @Rules will fire here.")
+    if duplicates:
+        print(f"  [P2 FAIL] duplicated signal types: {duplicates}")
     else:
-        print(f"  [WARNING] {rule_count} rule(s) fired — Phase 1 should have 0.")
+        print("  [P2 OK]   every signal type appears exactly once.")
+
+    # Day-1 invariant: signals only — the final verdict is Day-2 work
+    if decisions:
+        print(f"  [WARNING] {len(decisions)} Decision fact(s) — Day-1 should have 0.")
+    else:
+        print("  [Day-1 OK] signals only — no final verdict (Decision rules = Day-2).")
 
 
 # ==================================================================
@@ -214,9 +238,9 @@ SCENARIOS = [
 
 if __name__ == "__main__":
     print("\n" + "=" * 62)
-    print("  HYBRID CONTENT DECISION SYSTEM — Phase 1 Demo")
-    print("  (AI analysis + fact mapping + empty engine)")
-    print("  No decisions are made here — that is Phase 2.")
+    print("  HYBRID CONTENT DECISION SYSTEM — Day-1 Demo")
+    print("  AI analysis + fact mapping + Signal/Matching rules")
+    print("  Signals are produced — NO final verdict yet (Day-2).")
     print("=" * 62)
 
     for scenario in SCENARIOS:
@@ -228,6 +252,6 @@ if __name__ == "__main__":
         )
 
     print("\n" + "=" * 62)
-    print("  Phase 1 complete. All Facts enter the engine correctly.")
-    print("  Next: Ibrahim & Najat add @Rule methods to KBSEngine.")
+    print("  Day-1 complete: AI -> Facts -> Signals (one per type, P2).")
+    print("  Next (Day-2): Decision + Explanation rules produce the verdict.")
     print("=" * 62 + "\n")
