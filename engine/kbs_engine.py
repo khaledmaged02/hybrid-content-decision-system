@@ -1,41 +1,35 @@
 """
 engine/kbs_engine.py
 ==================================================================
-Phase 1 (Khaled) — the ENGINE SHELL.
+Phase 1 (Khaled) — ENGINE SHELL.
+Phase 2 (Najat / Ibrahim) — rules live in /rules/, imported via mixins.
 
-WHAT THIS IS
-    A subclass of experta's KnowledgeEngine that can:
-      * reset()        -> prepare working memory (inherited)
-      * load_facts()   -> declare prepared Facts into working memory
-      * run()          -> fire the agenda (inherited)
-      * print_facts()  -> show what's in working memory
+KBSEngine inherits from:
+  SignalRulesMixin   -> rules/signal_rules.py   (Najat, T1.4)
+  MatchingRulesMixin -> rules/matching_rules.py (Ibrahim / Najat, T1.5-T1.6)
 
-WHAT THIS IS NOT (Phase 1 invariant)
-    It contains ZERO @Rule methods and ZERO @DefFacts.
-    Zero rules == zero decisions. With no rules, run() fires nothing and
-    the Facts simply sit in working memory. That is EXACTLY the Phase 1
-    contract: "an empty engine that runs."
-
-PHASE 2 (Ibrahim & Najat)
-    They add @Rule methods to THIS class (or a subclass of it). Nothing
-    in this file needs to change for that — the shell is the seam between
-    Phase 1 plumbing and Phase 2 decision logic.
+This file contains ONLY plumbing: load_facts, list_facts, print_facts.
+Decision rules (T2.1+) will be added as additional mixins in Phase 2.
 
 PURE-experta NOTE
     The only loop here (load_facts) is PLUMBING: it moves already-built
-    Facts into memory. It matches nothing and decides nothing. The banned
-    pattern is using Python to MAKE a verdict — not this.
+    Facts into memory. It matches nothing and decides nothing.
 ==================================================================
 """
 
-from experta import KnowledgeEngine
-from experta.fact import InitialFact   # experta declares one of these on reset()
+from experta.fact import InitialFact
+
+from rules.signal_rules import SignalRulesMixin
+from rules.matching_rules import MatchingRulesMixin
 
 
-class KBSEngine(KnowledgeEngine):
-    """The Knowledge-Based System engine shell (no rules in Phase 1)."""
+class KBSEngine(SignalRulesMixin, MatchingRulesMixin):
+    """The Knowledge-Based System engine.
 
-    # --- intentionally no @Rule / @DefFacts here (see module docstring) ---
+    Inherits all @Rule methods from the mixin chain.
+    Add future rule mixins (decision_rules, explanation_rules) to the
+    base list here — nothing else needs to change.
+    """
 
     def load_facts(self, facts):
         """Declare an iterable of already-built Fact objects into memory.
@@ -45,18 +39,12 @@ class KBSEngine(KnowledgeEngine):
 
         IMPORTANT: experta requires reset() to be called BEFORE declaring
         (it even logs a warning otherwise), so callers must reset() first.
-        On each declare(), experta runs fact.validate() — that's where a
-        wrong type or a missing mandatory field is caught early.
         """
         for fact in facts:
             self.declare(fact)
 
     def list_facts(self, include_initial=False):
-        """Return [(idx, fact), ...] currently in working memory.
-
-        experta keeps an internal InitialFact (usually idx 0) after reset();
-        we hide it by default so callers see only the project's Facts.
-        """
+        """Return [(idx, fact), ...] currently in working memory."""
         return [
             (idx, fact)
             for idx, fact in self.facts.items()
@@ -70,34 +58,64 @@ class KBSEngine(KnowledgeEngine):
             print("  (no project facts in working memory)")
             return
         for idx, fact in rows:
-            # as_dict() returns only the explicitly-set fields (defaults are
-            # lazy and won't appear here), unfrozen for readable printing.
             print(f"  f-{idx}: {type(fact).__name__} -> {fact.as_dict()}")
 
 
 # ==================================================================
-# SMOKE TEST (self-contained; needs experta + Python 3.9.6 env)
-# Proves: engine constructs, has ZERO rules, accepts facts, run() fires
-# nothing, and working memory is inspectable. Makes NO decisions.
+# SMOKE TEST (Phase 2)
 # ==================================================================
 if __name__ == "__main__":
-    from experta import Fact, Field
-
-    class _Ping(Fact):              # throwaway local fact, just for this test
-        value = Field(str)
+    from facts.all_facts import (
+        ContentInput,
+        UserProfile,
+        ParentSettings,
+        AIAnalysis,
+        DetectedCategory,
+        SensitiveKeyword,
+        BannedCategory,
+        BannedKeyword,
+    )
 
     engine = KBSEngine()
-    engine.reset()                 # REQUIRED before declaring
+    engine.reset()
 
-    # The core Phase-1 invariant, checked programmatically:
-    rule_count = len(engine.get_rules())
-    print(f"rules loaded: {rule_count}  (Phase 1 MUST be 0)")
-    assert rule_count == 0, "Phase 1 violation: engine already has rules!"
+    print(f"rules loaded: {len(engine.get_rules())}  (signal + matching rules)")
 
-    engine.load_facts([_Ping(value="hello"), _Ping(value="world")])
-    engine.run()                   # zero rules -> nothing fires, no decisions
+    engine.load_facts([
+        ContentInput(
+            text="فيديو يحتوي على تهديد",
+            source_type="video",
+            source_reputation="suspicious"
+        ),
+        UserProfile(age=10, age_group="child", language="ar"),
+        ParentSettings(
+            protection_level="high",
+            banned_categories=["violence", "adult", "drugs"],
+            banned_keywords=["تهديد", "قتل"]
+        ),
+        AIAnalysis(
+            category="violence",
+            risk_score=88,
+            risk_level="high",
+            confidence_score=0.87,
+            confidence_level="high",
+            detected_categories=["violence"],
+            sensitive_keywords=["تهديد"],
+            suggested_min_age=16,
+            language="ar",
+            analyzer_type="mock"
+        ),
+        DetectedCategory(value="violence"),
+        SensitiveKeyword(value="تهديد"),
+        BannedCategory(value="violence"),
+        BannedCategory(value="adult"),
+        BannedCategory(value="drugs"),
+        BannedKeyword(value="تهديد"),
+        BannedKeyword(value="قتل"),
+    ])
 
-    print("working memory (project facts only):")
+    engine.run()
+
+    print("\nworking memory after rules:")
     engine.print_facts()
-
-    print("\nOK: empty engine runs, holds facts, and decides nothing.")
+    print("\nOK: Phase 2 rules run and produce Signals/Reasons only.")
