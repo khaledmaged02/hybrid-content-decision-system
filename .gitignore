@@ -1,3 +1,23 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+
+# Anaconda / venv
+.conda/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+
+# Project PDFs (team guides, kept out of the repo)
 *.pdf
