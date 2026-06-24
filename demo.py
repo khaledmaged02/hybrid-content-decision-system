@@ -18,10 +18,8 @@ WHAT THIS DEMO PROVES
     6. Decision rules read those Signals -> ONE final verdict
        (Blocked / Review / Warning / Allowed) + its Reason.
        Priority Blocked > Review > Warning > Allowed — see contract.md.
-
-STILL TO COME (T2.2+)
-    Explanation rules will aggregate the Reason facts into a single
-    Explanation tied to the chosen verdict.
+    7. The explanation rule aggregates every Reason into ONE Explanation
+       fact tied to the chosen verdict (T2.4).
 ==================================================================
 """
 
@@ -31,7 +29,7 @@ from engine.kbs_engine import KBSEngine
 from facts.all_facts import (
     UserProfile, ParentSettings, ContentInput, AIAnalysis,
     BannedCategory, BannedKeyword, DetectedCategory, SensitiveKeyword,
-    Signal, Reason, Decision,
+    Signal, Reason, Decision, Explanation,
 )
 
 # ── Atomic Fact types as a set for isinstance checks in print helpers ──
@@ -91,11 +89,12 @@ def _print_engine_state(engine):
     rows = engine.list_facts()          # hides experta's internal InitialFact
     rule_count = len(engine.get_rules())
 
-    signals   = [f for _, f in rows if isinstance(f, Signal)]
-    reasons   = [f for _, f in rows if isinstance(f, Reason)]
-    decisions = [f for _, f in rows if isinstance(f, Decision)]
+    signals      = [f for _, f in rows if isinstance(f, Signal)]
+    reasons      = [f for _, f in rows if isinstance(f, Reason)]
+    decisions    = [f for _, f in rows if isinstance(f, Decision)]
+    explanations = [f for _, f in rows if isinstance(f, Explanation)]
 
-    print(f"  Rules loaded   : {rule_count}  (signal + matching + decision)")
+    print(f"  Rules loaded   : {rule_count}  (signal + matching + decision + explanation)")
     print(f"  Facts in WM    : {len(rows)}")
     print(f"  Signals raised : {len(signals)}")
 
@@ -140,6 +139,19 @@ def _print_engine_state(engine):
     else:
         print(f"\n  [P1 FAIL] expected 1 Decision, got {len(decisions)}.")
 
+    # ── STEP 5: the aggregated Explanation produced by the explanation rule
+    _section("STEP 5 — Explanation: aggregated by experta (T2.4)")
+
+    for e in explanations:
+        print(f"  Explanation ({e['verdict']}):")
+        print(f"    {e['reasons_text']}")
+
+    # P1 invariant: the explanation rule asserts EXACTLY ONE Explanation (halt).
+    if len(explanations) == 1:
+        print("\n  [P1 OK]   exactly one Explanation asserted (experta fact, halt honoured).")
+    else:
+        print(f"\n  [P1 FAIL] expected 1 Explanation, got {len(explanations)}.")
+
 
 # ==================================================================
 # CORE: run one full scenario end-to-end
@@ -177,7 +189,7 @@ def run_scenario(title, user_data, parent_data, content_data):
     engine = KBSEngine()
     engine.reset()              # REQUIRED before declare (initialises RETE)
     engine.load_facts(all_facts)
-    engine.run()                # signal + matching rules, then ONE decision rule
+    engine.run_until_stable()   # signals -> ONE decision (halt) -> ONE explanation (halt)
     _print_engine_state(engine)
 
 
@@ -308,6 +320,6 @@ if __name__ == "__main__":
         )
 
     print("\n" + "=" * 62)
-    print("  Complete: AI -> Facts -> Signals -> ONE Decision per scenario.")
+    print("  Complete: AI -> Facts -> Signals -> ONE Decision -> ONE Explanation.")
     print("  Next: Add full test cases + README documentation.")
     print("=" * 62 + "\n")

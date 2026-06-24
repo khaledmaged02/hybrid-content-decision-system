@@ -24,14 +24,23 @@ from experta.fact import InitialFact
 from rules.signal_rules import SignalRulesMixin
 from rules.matching_rules import MatchingRulesMixin
 from rules.decision_rules import DecisionRulesMixin
+from rules.explanation_rules import ExplanationRulesMixin
 
 
-class KBSEngine(SignalRulesMixin, MatchingRulesMixin, DecisionRulesMixin):
+class KBSEngine(
+    SignalRulesMixin,
+    MatchingRulesMixin,
+    DecisionRulesMixin,
+    ExplanationRulesMixin,
+):
     """The Knowledge-Based System engine.
 
-    Inherits all @Rule methods from the mixin chain.
-    Add future rule mixins (decision_rules, explanation_rules) to the
-    base list here — nothing else needs to change.
+    Inherits all @Rule methods from the mixin chain:
+      SignalRulesMixin / MatchingRulesMixin -> Signal + Reason facts
+      DecisionRulesMixin                    -> ONE Decision (+ halt, P1)
+      ExplanationRulesMixin                 -> ONE Explanation (+ halt, P1)
+
+    Add future rule mixins to the base list here — nothing else changes.
     """
 
     def load_facts(self, facts):
@@ -45,6 +54,26 @@ class KBSEngine(SignalRulesMixin, MatchingRulesMixin, DecisionRulesMixin):
         """
         for fact in facts:
             self.declare(fact)
+
+    def run_until_stable(self, max_phases=8):
+        """Run every rule PHASE, not just the first.
+
+        PLUMBING, not logic. Each final rule calls self.halt() (P1), which
+        ends the current run() the instant a verdict — and later the
+        explanation — is asserted. The decision phase and the explanation
+        phase are therefore two separate run() passes. This helper simply
+        keeps calling run() until working memory stops growing, so callers
+        never have to know how many halt-terminated phases there are.
+
+        It chooses NO verdict; it only resumes the agenda experta froze.
+        """
+        previous = -1
+        for _ in range(max_phases):
+            self.run()
+            current = len(self.facts)
+            if current == previous:
+                break
+            previous = current
 
     def list_facts(self, include_initial=False):
         """Return [(idx, fact), ...] currently in working memory."""
@@ -82,7 +111,7 @@ if __name__ == "__main__":
     engine = KBSEngine()
     engine.reset()
 
-    print(f"rules loaded: {len(engine.get_rules())}  (signal + matching + decision)")
+    print(f"rules loaded: {len(engine.get_rules())}  (signal + matching + decision + explanation)")
 
     engine.load_facts([
         ContentInput(
@@ -117,8 +146,8 @@ if __name__ == "__main__":
         BannedKeyword(value="قتل"),
     ])
 
-    engine.run()
+    engine.run_until_stable()   # decision phase + explanation phase
 
     print("\nworking memory after rules:")
     engine.print_facts()
-    print("\nOK: rules run -> Signals/Reasons, then ONE final Decision.")
+    print("\nOK: rules run -> Signals/Reasons, then ONE Decision, then ONE Explanation.")

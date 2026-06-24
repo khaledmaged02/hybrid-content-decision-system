@@ -9,13 +9,16 @@ Input data
 → Mock AI Analyzer
 → AI-to-KBS Mapper
 → KBSEngine
-→ Experta Decision
+→ Experta Decision  (+ Experta Explanation)
 → API-ready output
 
 Important:
-This file does NOT decide Allowed / Warning / Blocked / Review.
-The final verdict must already exist as Decision(verdict=...) from Experta.
-Python here only runs the pipeline, validates the output, and formats the response.
+This file does NOT decide Allowed / Warning / Blocked / Review, and it does
+NOT compose the explanation text. Both the final Decision(verdict=...) and
+the aggregated Explanation(reasons_text=...) must already exist as Experta
+facts. Python here only runs the pipeline, validates the output, and formats
+the response (e.g. wrapping the Explanation's reasons_text with the AI
+confidence for the API payload).
 ==================================================================
 """
 
@@ -23,7 +26,7 @@ from ai_layer.mock_analyzer import analyze
 from ai_layer.ai_to_kbs_mapper import build_facts
 from engine.kbs_engine import KBSEngine
 
-from facts.all_facts import Decision, Reason, Signal
+from facts.all_facts import Decision, Reason, Signal, Explanation
 
 
 def _facts_of_type(engine, fact_type):
@@ -67,26 +70,6 @@ def _collect_triggered_rules(signals, reasons):
             triggered_rules.append(rule_name)
 
     return triggered_rules
-
-
-def _collect_reason_text(reasons):
-    """
-    Build a readable reason text from Reason facts.
-
-    This is explanation formatting only.
-    The decision itself already came from Experta.
-    """
-    reason_texts = []
-
-    for reason in reasons:
-        text = reason.as_dict().get("text")
-        if text:
-            reason_texts.append(text)
-
-    if not reason_texts:
-        return "لم يتم تسجيل سبب تفصيلي للقرار."
-
-    return " | ".join(reason_texts)
 
 
 def _build_arabic_explanation(verdict, ai_result, reason_text, signals):
@@ -195,7 +178,7 @@ def run_decision_engine(input_data):
     engine = KBSEngine()
     engine.reset()
     engine.load_facts(facts)
-    engine.run()
+    engine.run_until_stable()   # decision phase (P1 halt) + explanation phase (P1 halt)
 
     # --------------------------------------------------------------
     # 5. Collect facts produced by Experta
@@ -203,16 +186,23 @@ def run_decision_engine(input_data):
     decisions = _facts_of_type(engine, Decision)
     reasons = _facts_of_type(engine, Reason)
     signals = _facts_of_type(engine, Signal)
+    explanations = _facts_of_type(engine, Explanation)
 
-    # Validation only.
-    # We do NOT choose a fallback decision in Python.
+    # Validation only — we do NOT choose a fallback decision/explanation in
+    # Python. Both must come from Experta: exactly one of each (P1).
     if len(decisions) != 1:
         raise RuntimeError(
             f"Expected exactly one Decision from Experta, but got {len(decisions)}."
         )
+    if len(explanations) != 1:
+        raise RuntimeError(
+            f"Expected exactly one Explanation from Experta, but got {len(explanations)}."
+        )
 
     verdict = decisions[0]["verdict"]
-    reason_text = _collect_reason_text(reasons)
+    # The aggregated reason text is produced by the experta Explanation rule
+    # (T2.4), not joined here. Python below only PRESENTS it for the API.
+    reason_text = explanations[0]["reasons_text"]
     triggered_rules = _collect_triggered_rules(signals, reasons)
     explanation = _build_arabic_explanation(
         verdict=verdict,
