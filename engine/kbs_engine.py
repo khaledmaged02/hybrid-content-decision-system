@@ -7,9 +7,11 @@ Phase 2 (Najat / Ibrahim) — rules live in /rules/, imported via mixins.
 KBSEngine inherits from:
   SignalRulesMixin   -> rules/signal_rules.py   (Najat, T1.4)
   MatchingRulesMixin -> rules/matching_rules.py (Ibrahim / Najat, T1.5-T1.6)
+  DecisionRulesMixin -> rules/decision_rules.py (Day-2, T2.1) — the final
+                        Blocked/Review/Warning/Allowed verdict.
 
 This file contains ONLY plumbing: load_facts, list_facts, print_facts.
-Decision rules (T2.1+) will be added as additional mixins in Phase 2.
+Explanation rules (T2.2+) will be added as additional mixins next.
 
 PURE-experta NOTE
     The only loop here (load_facts) is PLUMBING: it moves already-built
@@ -21,9 +23,10 @@ from experta.fact import InitialFact
 
 from rules.signal_rules import SignalRulesMixin
 from rules.matching_rules import MatchingRulesMixin
+from rules.decision_rules import DecisionRulesMixin
 
 
-class KBSEngine(SignalRulesMixin, MatchingRulesMixin):
+class KBSEngine(SignalRulesMixin, MatchingRulesMixin, DecisionRulesMixin):
     """The Knowledge-Based System engine.
 
     Inherits all @Rule methods from the mixin chain.
@@ -79,7 +82,7 @@ if __name__ == "__main__":
     engine = KBSEngine()
     engine.reset()
 
-    print(f"rules loaded: {len(engine.get_rules())}  (signal + matching rules)")
+    print(f"rules loaded: {len(engine.get_rules())}  (signal + matching + decision)")
 
     engine.load_facts([
         ContentInput(
@@ -118,4 +121,4 @@ if __name__ == "__main__":
 
     print("\nworking memory after rules:")
     engine.print_facts()
-    print("\nOK: Phase 2 rules run and produce Signals/Reasons only.")
+    print("\nOK: rules run -> Signals/Reasons, then ONE final Decision.")
