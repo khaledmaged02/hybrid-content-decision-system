@@ -309,5 +309,5 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 62)
     print("  Complete: AI -> Facts -> Signals -> ONE Decision per scenario.")
-    print("  Next (T2.2+): Explanation rules aggregate Reasons per verdict.")
+    print("  Next: Add full test cases + README documentation.")
     print("=" * 62 + "\n")
