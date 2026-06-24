@@ -45,8 +45,8 @@ THE ONE GUARD THAT IS NOT ABOUT PRIORITY — CASE-9 (P4 / T0.5)
     exists. The ONLY extra condition needed is that a high_risk item must
     NOT auto-block when confidence is low and there is no banned hit — so
     rule_blocked_high_risk carries `NOT(Signal(type="low_confidence"))`,
-    handing that case to rule_review_case9. That is the single NOT() guard
-    in this file, and it is logic, not precedence.
+    handing that case to rule_review_case9. This is the only logical NOT guard related to case-9.
+    The other NOT(FinalDecisionMarker()) guards are safety guards that prevent more than one final decision.
 
 PURE experta
     No `for` loops and no `if` statements. Priority is salience; the only
@@ -61,6 +61,7 @@ from facts.all_facts import (
     Signal,
     Decision,
     Reason,
+    FinalDecisionMarker,
 )
 
 # ------------------------------------------------------------------
@@ -83,10 +84,12 @@ class DecisionRulesMixin(KnowledgeEngine):
 
     @Rule(
         Signal(type="banned_category_hit"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_BLOCKED,
     )
     def rule_blocked_banned_category(self):
         self.declare(Decision(verdict="Blocked"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_blocked_banned_category",
             text="تم حظر المحتوى لأنه يحتوي على فئة محظورة من إعدادات الأهل."
@@ -95,10 +98,12 @@ class DecisionRulesMixin(KnowledgeEngine):
 
     @Rule(
         Signal(type="keyword_hit"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_BLOCKED - 1,
     )
     def rule_blocked_keyword(self):
         self.declare(Decision(verdict="Blocked"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_blocked_keyword",
             text="تم حظر المحتوى لاحتوائه على كلمة محظورة من إعدادات الأهل."
@@ -114,10 +119,12 @@ class DecisionRulesMixin(KnowledgeEngine):
     @Rule(
         Signal(type="high_risk"),
         NOT(Signal(type="low_confidence")),
+        NOT(FinalDecisionMarker()),
         salience=SAL_BLOCKED - 2,
     )
     def rule_blocked_high_risk(self):
         self.declare(Decision(verdict="Blocked"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_blocked_high_risk",
             text="تم حظر المحتوى لأن درجة الخطورة عالية أو حرجة (75 فأكثر)."
@@ -135,10 +142,12 @@ class DecisionRulesMixin(KnowledgeEngine):
     @Rule(
         Signal(type="high_risk"),
         Signal(type="low_confidence"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_REVIEW,
     )
     def rule_review_case9(self):
         self.declare(Decision(verdict="Review"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_review_case9",
             text=("خطورة عالية مع ثقة منخفضة (الحالة 9)، وفي حال عدم وجود "
@@ -151,10 +160,12 @@ class DecisionRulesMixin(KnowledgeEngine):
     # only need to match low_confidence.
     @Rule(
         Signal(type="low_confidence"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_REVIEW - 1,
     )
     def rule_review_low_confidence(self):
         self.declare(Decision(verdict="Review"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_review_low_confidence",
             text="ثقة التحليل منخفضة (أقل من 0.55)، لذلك يُحوّل المحتوى إلى المراجعة."
@@ -170,10 +181,12 @@ class DecisionRulesMixin(KnowledgeEngine):
     @Rule(
         AIAnalysis(category="general"),
         Signal(type="medium_risk"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_REVIEW - 2,
     )
     def rule_review_unknown_category(self):
         self.declare(Decision(verdict="Review"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_review_unknown_category",
             text=("الفئة غير معروفة (general) مع خطورة متوسطة، "
@@ -189,10 +202,12 @@ class DecisionRulesMixin(KnowledgeEngine):
 
     @Rule(
         Signal(type="medium_risk"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_WARNING,
     )
     def rule_warning_medium_risk(self):
         self.declare(Decision(verdict="Warning"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_warning_medium_risk",
             text=("درجة الخطورة متوسطة (بين 40 و74) وبدون إشارة أقوى، "
@@ -202,10 +217,12 @@ class DecisionRulesMixin(KnowledgeEngine):
 
     @Rule(
         Signal(type="age_violation"),
+        NOT(FinalDecisionMarker()),
         salience=SAL_WARNING - 1,
     )
     def rule_warning_age_violation(self):
         self.declare(Decision(verdict="Warning"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_warning_age_violation",
             text=("يوجد تجاوز عمري (العمر المقترح أكبر من عمر المستخدم) "
@@ -223,10 +240,12 @@ class DecisionRulesMixin(KnowledgeEngine):
     # never block this default.
     @Rule(
         AIAnalysis(),
+        NOT(FinalDecisionMarker()),
         salience=SAL_ALLOWED,
     )
     def rule_allowed(self):
         self.declare(Decision(verdict="Allowed"))
+        self.declare(FinalDecisionMarker())
         self.declare(Reason(
             rule_name="rule_allowed",
             text="لا توجد إشارات سلبية والخطورة منخفضة، لذلك يُسمح بالمحتوى."
