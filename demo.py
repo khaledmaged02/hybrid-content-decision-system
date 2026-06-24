@@ -9,17 +9,19 @@ HOW TO RUN (IMPORTANT)
     WRONG:  python -m demo               (unnecessary here)
     RIGHT:  cd hybrid-content-decision-system && python demo.py
 
-WHAT THIS DEMO PROVES (Day-1 scope — T1.7)
+WHAT THIS DEMO PROVES
     1. AI layer  (mock_analyzer)  analyzes content -> dict.
     2. Mapper    (ai_to_kbs_mapper) converts dicts -> Facts.
     3. Engine    (kbs_engine)      holds Facts in working memory.
     4. Signal + Matching rules fire -> Signal + Reason facts.
     5. Each signal type appears EXACTLY once (P2 verification).
+    6. Decision rules read those Signals -> ONE final verdict
+       (Blocked / Review / Warning / Allowed) + its Reason.
+       Priority Blocked > Review > Warning > Allowed — see contract.md.
 
-WHAT IT DOES NOT DO (Day-2 — Ibrahim & Najat)
-    Produce any verdict (Allowed / Warning / Blocked / Review).
-    Day-2 decision/explanation @Rule methods will read these Signals
-    and produce the final Decision + Explanation.
+STILL TO COME (T2.2+)
+    Explanation rules will aggregate the Reason facts into a single
+    Explanation tied to the chosen verdict.
 ==================================================================
 """
 
@@ -84,7 +86,7 @@ def _print_facts(all_facts):
 
 
 def _print_engine_state(engine):
-    _section("STEP 3 — Engine run: Signals produced (Day-1 / T1.7)")
+    _section("STEP 3 — Engine run: Signals produced")
 
     rows = engine.list_facts()          # hides experta's internal InitialFact
     rule_count = len(engine.get_rules())
@@ -93,7 +95,7 @@ def _print_engine_state(engine):
     reasons   = [f for _, f in rows if isinstance(f, Reason)]
     decisions = [f for _, f in rows if isinstance(f, Decision)]
 
-    print(f"  Rules loaded   : {rule_count}  (signal + matching rules)")
+    print(f"  Rules loaded   : {rule_count}  (signal + matching + decision)")
     print(f"  Facts in WM    : {len(rows)}")
     print(f"  Signals raised : {len(signals)}")
 
@@ -119,11 +121,24 @@ def _print_engine_state(engine):
     else:
         print("  [P2 OK]   every signal type appears exactly once.")
 
-    # Day-1 invariant: signals only — the final verdict is Day-2 work
-    if decisions:
-        print(f"  [WARNING] {len(decisions)} Decision fact(s) — Day-1 should have 0.")
+    # ── STEP 4: the final verdict produced by the decision rules ──────
+    _section("STEP 4 — Decision: the final verdict")
+
+    decision_reasons = [r for r in reasons
+                        if r['rule_name'].startswith(("rule_blocked_",
+                                                      "rule_review_",
+                                                      "rule_warning_",
+                                                      "rule_allowed"))]
+    for d in decisions:
+        print(f"  VERDICT : {d['verdict']}")
+    for r in decision_reasons:
+        print(f"  Reason  : {r['text']}")
+
+    # P1 invariant: the decision rules assert EXACTLY ONE Decision (halt).
+    if len(decisions) == 1:
+        print("\n  [P1 OK]   exactly one Decision asserted (self.halt() honoured).")
     else:
-        print("  [Day-1 OK] signals only — no final verdict (Decision rules = Day-2).")
+        print(f"\n  [P1 FAIL] expected 1 Decision, got {len(decisions)}.")
 
 
 # ==================================================================
@@ -162,7 +177,7 @@ def run_scenario(title, user_data, parent_data, content_data):
     engine = KBSEngine()
     engine.reset()              # REQUIRED before declare (initialises RETE)
     engine.load_facts(all_facts)
-    engine.run()                # Phase 1: 0 rules -> 0 activations -> 0 decisions
+    engine.run()                # signal + matching rules, then ONE decision rule
     _print_engine_state(engine)
 
 
@@ -229,6 +244,47 @@ SCENARIOS = [
             "source_reputation": "unknown",
         },
     },
+    {
+        # medium_risk (bet -> 50) but the category/keyword are NOT banned
+        # and the adult user clears suggested_min_age -> WARNING, not Blocked.
+        "title": "WARNING — adult / gambling not banned / medium risk",
+        "user_data": {
+            "age": 20,
+            "age_group": "adult",
+            "language": "en",
+        },
+        "parent_data": {
+            "protection_level": "medium",
+            "banned_categories": ["drugs"],
+            "banned_keywords": ["drug"],
+        },
+        "content_data": {
+            "text": "thinking about going to bet on the match",
+            "source_type": "text",
+            "source_reputation": "unknown",
+        },
+    },
+    {
+        # one low-weight keyword (blood -> risk 30, low) recognised so
+        # confidence is 0.70 (NOT low), category not banned, user old
+        # enough -> ZERO negative signals -> ALLOWED.
+        "title": "ALLOWED — teen / recognised but harmless / trusted source",
+        "user_data": {
+            "age": 16,
+            "age_group": "teen",
+            "language": "en",
+        },
+        "parent_data": {
+            "protection_level": "medium",
+            "banned_categories": ["gambling"],
+            "banned_keywords": ["bet"],
+        },
+        "content_data": {
+            "text": "a nature documentary that briefly shows some blood",
+            "source_type": "video",
+            "source_reputation": "trusted",
+        },
+    },
 ]
 
 
@@ -238,9 +294,9 @@ SCENARIOS = [
 
 if __name__ == "__main__":
     print("\n" + "=" * 62)
-    print("  HYBRID CONTENT DECISION SYSTEM — Day-1 Demo")
-    print("  AI analysis + fact mapping + Signal/Matching rules")
-    print("  Signals are produced — NO final verdict yet (Day-2).")
+    print("  HYBRID CONTENT DECISION SYSTEM — Demo")
+    print("  AI analysis + fact mapping + Signal/Matching + Decision rules")
+    print("  Each scenario ends in ONE verdict: Blocked/Review/Warning/Allowed.")
     print("=" * 62)
 
     for scenario in SCENARIOS:
@@ -252,6 +308,6 @@ if __name__ == "__main__":
         )
 
     print("\n" + "=" * 62)
-    print("  Day-1 complete: AI -> Facts -> Signals (one per type, P2).")
-    print("  Next (Day-2): Decision + Explanation rules produce the verdict.")
+    print("  Complete: AI -> Facts -> Signals -> ONE Decision per scenario.")
+    print("  Next (T2.2+): Explanation rules aggregate Reasons per verdict.")
     print("=" * 62 + "\n")

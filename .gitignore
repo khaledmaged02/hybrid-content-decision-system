@@ -6,6 +6,7 @@ __pycache__/
 # Anaconda / venv
 .conda/
 venv/
+.venv/
 env/
 
 # IDE
